@@ -1,4 +1,4 @@
-"""采集任务编排接口：维护采集计划，覆盖启动计划、暂停计划、归档计划等动作。"""
+"""采集任务编排接口：计划维护、校验待处理清单与下一批抓取门禁。"""
 from __future__ import annotations
 
 from typing import Any
@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
+from app.services import trial
 from app.services.taskplan import TaskplanService
 
 router = APIRouter(prefix="/api/taskplan", tags=["采集任务编排"])
@@ -14,6 +15,12 @@ service = TaskplanService()
 
 LIST_FIELDS = ["计划编号", "目标站点", "采集频率", "数据范围", "优先级", "资源配额", "预计用时", "计划状态"]
 STATUSES = ["草稿", "运行中", "已暂停", "已完成"]
+
+
+@router.get("/guards/pending")
+def all_pending_guards() -> dict[str, Any]:
+    """采集计划页的待处理清单：跨计划汇总最近一次校验批次与阻断原因。"""
+    return {"items": trial.list_guards(only_open=True)}
 
 
 @router.get("", response_model=PageResult[dict])
@@ -28,6 +35,33 @@ def list_entries(
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
     items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
+
+
+@router.get("/{entry_id}/guard")
+def guard_overview(entry_id: int) -> dict[str, Any]:
+    """单个计划的校验看板：最近一次校验批次、阻断原因、硬阻断/警告数量与下一批门禁。"""
+    overview, message = service.guard_overview(entry_id)
+    if overview is None:
+        raise HTTPException(status_code=404, detail=message)
+    return overview
+
+
+@router.post("/{entry_id}/next-batch")
+def next_batch(entry_id: int) -> ActionResult:
+    """进入下一批抓取的统一门禁：硬阻断拦截，仅警告放行并保留待处理项。"""
+    entry, message, allowed = service.request_next_batch(entry_id)
+    if entry is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=allowed, message=message, entry=entry)
+
+
+@router.post("/guards/{guard_id}/resolve")
+def resolve_guard(guard_id: int) -> ActionResult:
+    """处理一条待办项：硬阻断解除后计划才能进入下一批；重复处理幂等。"""
+    guard, message = trial.resolve_guard(guard_id)
+    if guard is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=guard)
 
 
 @router.get("/{entry_id}", response_model=dict)

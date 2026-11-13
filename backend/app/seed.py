@@ -3,6 +3,99 @@ from __future__ import annotations
 
 from typing import Any
 
+
+def _rule_snapshot(rule: dict[str, Any], version_no: int) -> dict[str, Any]:
+    """规则版本快照：试运行按批次冻结表达式、采样比例与阻断级别，旧批次不受后续修改影响。"""
+    snapshot = {"version_no": version_no}
+    for field in ("校验对象", "校验类型", "校验表达式", "阈值配置", "采样比例", "阻断级别", "阻断上限"):
+        snapshot[field] = rule[field]
+    return snapshot
+
+
+def _verify_rule(
+    rule_id: int,
+    code: str,
+    status: str,
+    expression: str,
+    ratio: int,
+    block_limit: int,
+    block_level: str,
+    *,
+    pending: bool = True,
+    abnormal: bool = False,
+) -> dict[str, Any]:
+    rule: dict[str, Any] = {
+        "id": rule_id,
+        "status": status,
+        "pending": pending,
+        "abnormal": abnormal,
+        "规则编号": code,
+        "校验对象": "采集结果记录",
+        "校验类型": "表达式校验",
+        "校验表达式": expression,
+        "阈值配置": f"阻断上限 {block_limit}%",
+        "采样比例": ratio,
+        "阻断级别": block_level,
+        "阻断上限": block_limit,
+        "当前版本号": 1,
+        "最近校验": "未试运行",
+    }
+    rule["versions"] = [_rule_snapshot(rule, 1)]
+    return rule
+
+
+def _sample(record_id: int, plan_id: int, plan_code: str, batch_no: str, payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": record_id,
+        "record_id": f"REC-{record_id:04d}",
+        "plan_id": plan_id,
+        "plan_code": plan_code,
+        "batch_no": batch_no,
+        "payload": payload,
+    }
+
+
+def _taskplan_samples() -> list[dict[str, Any]]:
+    """TASK-0002 两批样本：BATCH-001 足量且含阻断/缺字段记录，BATCH-002 不足最小样本量。"""
+    rows: list[dict[str, Any]] = []
+    seq = 1
+    for index in range(1, 25):
+        if index <= 12:
+            payload = {"name": f"商品{index}", "price": 50 + index, "stock": 100 + index}
+        elif index <= 20:
+            payload = {"name": f"商品{index}", "price": 200 + index * 10, "stock": 200 + index}
+        elif index <= 22:
+            # 缺字段：不得直接判通过，进入待人工确认并汇总缺少字段
+            payload = {"name": f"商品{index}", "stock": 300 + index}
+        else:
+            payload = {"name": f"商品{index}", "price": 95 + index, "stock": 400 + index}
+        rows.append(_sample(seq, 2, "TASK-0002", "BATCH-001", payload))
+        seq += 1
+    for index in range(1, 5):
+        rows.append(
+            _sample(
+                seq,
+                2,
+                "TASK-0002",
+                "BATCH-002",
+                {"name": f"二批商品{index}", "price": 300 + index, "stock": 50 + index},
+            )
+        )
+        seq += 1
+    for index in range(1, 13):
+        rows.append(
+            _sample(
+                seq,
+                1,
+                "TASK-0001",
+                "BATCH-001",
+                {"name": f"计划一商品{index}", "price": 150 + index, "stock": 60 + index},
+            )
+        )
+        seq += 1
+    return rows
+
+
 SEED_ROWS: dict[str, list[dict[str, Any]]] = {
     "taskplan": [{'id': 1,
   'status': '草稿',
@@ -40,42 +133,14 @@ SEED_ROWS: dict[str, list[dict[str, Any]]] = {
   '资源配额': '采集任务编排样例3',
   '预计用时': '采集任务编排样例3',
   '计划状态': '采集任务编排样例3'}],
-    "verify": [{'id': 1,
-  'status': '草稿',
-  'pending': True,
-  'abnormal': False,
-  '规则编号': 'VERI-0001',
-  '校验对象': '采集结果校验样例1',
-  '校验类型': '采集结果校验样例1',
-  '校验表达式': '采集结果校验样例1',
-  '阈值配置': '采集结果校验样例1',
-  '采样比例': '采集结果校验样例1',
-  '阻断级别': '采集结果校验样例1',
-  '最近校验': '采集结果校验样例1'},
- {'id': 2,
-  'status': '运行中',
-  'pending': True,
-  'abnormal': True,
-  '规则编号': 'VERI-0002',
-  '校验对象': '采集结果校验样例2',
-  '校验类型': '采集结果校验样例2',
-  '校验表达式': '采集结果校验样例2',
-  '阈值配置': '采集结果校验样例2',
-  '采样比例': '采集结果校验样例2',
-  '阻断级别': '采集结果校验样例2',
-  '最近校验': '采集结果校验样例2'},
- {'id': 3,
-  'status': '已暂停',
-  'pending': False,
-  'abnormal': False,
-  '规则编号': 'VERI-0003',
-  '校验对象': '采集结果校验样例3',
-  '校验类型': '采集结果校验样例3',
-  '校验表达式': '采集结果校验样例3',
-  '阈值配置': '采集结果校验样例3',
-  '采样比例': '采集结果校验样例3',
-  '阻断级别': '采集结果校验样例3',
-  '最近校验': '采集结果校验样例3'}],
+    "verify": [
+        _verify_rule(1, "VERI-0001", "草稿", "price >= 100 and stock >= 0", 50, 20, "仅警告"),
+        _verify_rule(2, "VERI-0002", "运行中", "price >= 100", 60, 20, "硬阻断", abnormal=True),
+        _verify_rule(3, "VERI-0003", "已暂停", "price <= 5000", 30, 10, "仅警告", pending=False),
+    ],
+    "collect_sample": _taskplan_samples(),
+    "verify_trial": [],
+    "plan_guard": [],
     "pipeline": [{'id': 1,
   'status': '草稿',
   'pending': True,

@@ -1,4 +1,4 @@
-"""采集任务编排业务规则：状态流转、字段校验与筛选口径都收在这里。"""
+"""采集任务编排业务规则：状态流转、字段校验与下一批抓取门禁。"""
 from __future__ import annotations
 
 from typing import Any
@@ -8,7 +8,7 @@ from app.store import store
 MODULE = "taskplan"
 REQUIRED_FIELDS = ["计划编号", "目标站点", "采集频率"]
 STATUS_ORDER = ["草稿", "运行中", "已暂停", "已完成"]
-ACTION_RULES = {"启动计划": "草稿", "暂停计划": "运行中", "归档计划": "已暂停"}
+ACTION_RULES = {"启动计划": "运行中", "暂停计划": "已暂停", "归档计划": "已完成"}
 NEGATIVE_ACTIONS = []
 
 
@@ -59,3 +59,27 @@ class TaskplanService:
         entry["pending"] = target != STATUS_ORDER[-1]
         entry["abnormal"] = action in NEGATIVE_ACTIONS
         return entry, f"采集计划已{action}"
+
+    def request_next_batch(self, entry_id: int) -> tuple[dict[str, Any] | None, str, bool]:
+        """进入下一批抓取前的统一门禁。
+
+        硬阻断 => 拒绝并返回阻断原因；仅警告 => 放行但保留待处理项；
+        台账按批次去重，重复试运行不会重复阻断。
+        """
+        from app.services import trial
+
+        entry = store.find(MODULE, entry_id)
+        if entry is None:
+            return None, f"采集计划 {entry_id} 不存在或已归档", False
+        decision, allowed = trial.check_next_batch(entry_id)
+        if not allowed:
+            entry["abnormal"] = True
+            return entry, decision["reason"], False
+        return entry, f"门禁通过，可进入 {decision['next_batch_no']} 抓取（保留 {decision.get('warnings', 0)} 条警告待处理项）", True
+
+    def guard_overview(self, entry_id: int) -> tuple[dict[str, Any] | None, str]:
+        from app.services import trial
+
+        if store.find(MODULE, entry_id) is None:
+            return None, f"采集计划 {entry_id} 不存在或已归档"
+        return trial.plan_guard_overview(entry_id), ""

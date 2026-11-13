@@ -33,3 +33,43 @@ body { margin: 0; background: #f6f8fb; color: #1f2937; }
 .link { border: none; background: none; color: var(--brand); cursor: pointer; padding: 0; }
 .page-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .error-text { color: #b42318; }
+.success-text { color: #067647; }
+
+/* 试运行 / 待处理清单共用组件样式 */
+.panel { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
+.panel-title { font-size: 14px; font-weight: 600; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.panel-hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field label { font-size: 12px; color: var(--muted); }
+.form-field input, .form-field select, .form-field textarea {
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 13px; font: inherit;
+}
+.form-field textarea { min-height: 64px; resize: vertical; }
+.field-error { color: #b42318; font-size: 12px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+.badge.gray { background: #f1f5f9; color: #475569; }
+.badge.green { background: #dcfae6; color: #067647; }
+.badge.red { background: #fee4e2; color: #b42318; }
+.badge.amber { background: #fef0c7; color: #b54708; }
+.badge.blue { background: #e0efff; color: #1849a9; }
+.count-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; text-align: center; }
+.count-card .num { font-size: 22px; font-weight: 700; display: block; }
+.count-card .lbl { font-size: 12px; color: var(--muted); }
+.count-card.pass .num { color: #067647; }
+.count-card.block .num { color: #b42318; }
+.count-card.manual .num { color: #b54708; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow: auto; z-index: 50; }
+.modal { background: #fff; border-radius: 10px; width: min(760px, 100%); padding: 18px 20px; box-shadow: 0 12px 32px rgba(15, 23, 42, .2); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.modal-head h3 { margin: 0; font-size: 16px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.reason-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; line-height: 1.6; }
+.kv-list { font-size: 12px; color: #334155; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+.mini-table { width: 100%; border-collapse: collapse; }
+.mini-table th, .mini-table td { border: 1px solid var(--border); padding: 5px 8px; font-size: 12px; text-align: left; }
+.mini-table th { background: #f8fafc; }
+.scroll-box { max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+.policy-strip { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+.policy-strip span { background: #eef4ff; color: #1849a9; border-radius: 999px; padding: 3px 10px; }
